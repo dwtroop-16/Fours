@@ -39,6 +39,6 @@ export default function DashboardPage() {
 
 async function DeskLoader() {
   await connection();
-  const initialData = getOverview();
+  const initialData = await getOverview();
   return <BuyingDesk initialData={initialData} />;
 }

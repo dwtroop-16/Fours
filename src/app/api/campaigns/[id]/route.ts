@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncCampaignToPlatform } from "@/lib/platforms/mock";
+import { syncCampaignToPlatform } from "@/lib/platforms";
 import { getCampaign, upsertCampaign } from "@/lib/store";
 import type { CampaignStatus } from "@/lib/types";
-
 
 export async function PATCH(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
   const { id } = await ctx.params;
-  const campaign = getCampaign(id);
+  const campaign = await getCampaign(id);
   if (!campaign) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -29,7 +28,7 @@ export async function PATCH(
     updatedAt: new Date().toISOString(),
   };
 
-  upsertCampaign(next);
+  await upsertCampaign(next);
   const sync = await syncCampaignToPlatform(next);
   return NextResponse.json({ campaign: next, sync });
 }

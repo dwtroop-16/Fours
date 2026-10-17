@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createId } from "@/lib/id";
 import { addConversion, getCampaign, getOffer } from "@/lib/store";
 
-
 /**
  * S2S postback endpoint.
  * Example: /api/postback?campaign_id=camp_x&click_id=abc&payout=45
@@ -10,7 +9,8 @@ import { addConversion, getCampaign, getOffer } from "@/lib/store";
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
   const campaignId = params.get("campaign_id") ?? params.get("cid");
-  const clickId = params.get("click_id") ?? params.get("clickid") ?? createId("clk");
+  const clickId =
+    params.get("click_id") ?? params.get("clickid") ?? createId("clk");
   const payoutParam = params.get("payout") ?? params.get("amount");
 
   if (!campaignId) {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const campaign = getCampaign(campaignId);
+  const campaign = await getCampaign(campaignId);
   if (!campaign) {
     return NextResponse.json(
       { ok: false, error: "unknown campaign" },
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const offer = getOffer(campaign.offerId);
+  const offer = await getOffer(campaign.offerId);
   const payout = payoutParam ? Number(payoutParam) : (offer?.payout ?? 0);
   if (!Number.isFinite(payout) || payout < 0) {
     return NextResponse.json(
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const conversion = addConversion({
+  const conversion = await addConversion({
     id: createId("conv"),
     campaignId,
     offerId: campaign.offerId,

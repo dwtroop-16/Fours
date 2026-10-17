@@ -1,30 +1,35 @@
 import { computeCampaignMetrics } from "@/lib/metrics";
+import { metaConfigStatus } from "@/lib/platforms";
+import { usingNeon } from "@/lib/db/client";
 import {
   getOffer,
   listCampaigns,
   listConversions,
   listExecutions,
   listOffers,
+  listPlatformSyncLogs,
   listRules,
   listSpendEvents,
 } from "@/lib/store";
 
-export function getOverview() {
-  const campaigns = listCampaigns();
-  const spendEvents = listSpendEvents();
-  const conversions = listConversions();
+export async function getOverview() {
+  const campaigns = await listCampaigns();
+  const spendEvents = await listSpendEvents();
+  const conversions = await listConversions();
   const since = new Date(Date.now() - 24 * 3600_000);
 
-  const rows = campaigns.map((campaign) => {
-    const metrics = computeCampaignMetrics(
-      campaign.id,
-      spendEvents,
-      conversions,
-      since,
-    );
-    const offer = getOffer(campaign.offerId);
-    return { campaign, offer, metrics };
-  });
+  const rows = await Promise.all(
+    campaigns.map(async (campaign) => {
+      const metrics = computeCampaignMetrics(
+        campaign.id,
+        spendEvents,
+        conversions,
+        since,
+      );
+      const offer = await getOffer(campaign.offerId);
+      return { campaign, offer, metrics };
+    }),
+  );
 
   const totals = rows.reduce(
     (acc, row) => {
@@ -50,9 +55,14 @@ export function getOverview() {
       pausedCampaigns: campaigns.filter((c) => c.status === "paused").length,
     },
     campaigns: rows,
-    offers: listOffers(),
-    rules: listRules(),
-    executions: listExecutions(25),
+    offers: await listOffers(),
+    rules: await listRules(),
+    executions: await listExecutions(25),
+    syncLogs: await listPlatformSyncLogs(15),
+    infra: {
+      database: usingNeon() ? ("neon" as const) : ("pglite" as const),
+      meta: metaConfigStatus(),
+    },
   };
 }
 
@@ -60,4 +70,4 @@ function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-export type Overview = ReturnType<typeof getOverview>;
+export type Overview = Awaited<ReturnType<typeof getOverview>>;

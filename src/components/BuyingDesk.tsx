@@ -33,7 +33,7 @@ export function BuyingDesk({ initialData }: { initialData: Overview }) {
     });
   }
 
-  const { totals, campaigns, offers, rules, executions } = data;
+  const { totals, campaigns, offers, rules, executions, syncLogs, infra } = data;
 
   return (
     <div className="mx-auto max-w-7xl space-y-10 px-6 py-8">
@@ -45,6 +45,14 @@ export function BuyingDesk({ initialData }: { initialData: Overview }) {
           <p className="mt-1 text-sm text-fog">
             {totals.activeCampaigns} active · {totals.pausedCampaigns} paused ·{" "}
             {offers.length} offers
+          </p>
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fog">
+            DB {infra.database}
+            {" · "}
+            Meta {infra.meta.mode}
+            {infra.meta.adAccountId ? ` · ${infra.meta.adAccountId}` : ""}
+            {" · "}
+            Cron /api/cron/evaluate-rules
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -221,6 +229,34 @@ export function BuyingDesk({ initialData }: { initialData: Overview }) {
           )}
         </section>
       </div>
+
+      <section>
+        <h2 className="mb-4 font-[family-name:var(--font-syne)] text-xl font-bold">
+          Platform sync log
+        </h2>
+        {syncLogs.length === 0 ? (
+          <p className="border-t border-ink-line pt-4 text-sm text-fog">
+            No platform syncs yet. Rule actions push status/budget to adapters.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {syncLogs.map((log) => (
+              <li
+                key={log.id}
+                className="border-t border-ink-line pt-3 font-mono text-[11px] leading-relaxed text-fog"
+              >
+                <span className={log.ok ? "text-lime" : "text-danger"}>
+                  {relativeTime(log.at)}
+                </span>
+                {" · "}
+                {log.platform}/{log.action}
+                {" · "}
+                {log.detail}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="border-t border-ink-line pt-8 pb-4">
         <h2 className="font-[family-name:var(--font-syne)] text-xl font-bold">

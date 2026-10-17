@@ -7,10 +7,8 @@ import {
   listCampaigns,
 } from "@/lib/store";
 
-
 /**
  * Simulate a burst of traffic + optional conversions for demo / testing rules.
- * Body: { campaignId?: string, hours?: number, aggression?: "winner" | "loser" | "neutral" }
  */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -19,7 +17,7 @@ export async function POST(req: NextRequest) {
     aggression?: "winner" | "loser" | "neutral";
   };
 
-  const campaigns = listCampaigns().filter((c) => c.status === "active");
+  const campaigns = (await listCampaigns()).filter((c) => c.status === "active");
   const target = body.campaignId
     ? campaigns.filter((c) => c.id === body.campaignId)
     : campaigns;
@@ -36,19 +34,22 @@ export async function POST(req: NextRequest) {
   const created = { spend: 0, conversions: 0 };
 
   for (const campaign of target) {
-    const offer = getOffer(campaign.offerId);
+    const offer = await getOffer(campaign.offerId);
     const payout = offer?.payout ?? 20;
 
     for (let h = 0; h < hours; h++) {
       const baseSpend = campaign.dailyBudget / 24;
       const spendMult =
         aggression === "loser" ? 1.6 : aggression === "winner" ? 0.9 : 1;
-      const spend = Math.round(baseSpend * spendMult * (0.8 + Math.random() * 0.4) * 100) / 100;
+      const spend =
+        Math.round(
+          baseSpend * spendMult * (0.8 + Math.random() * 0.4) * 100,
+        ) / 100;
       const cpc = 0.35 + Math.random() * 0.9;
       const clicks = Math.max(1, Math.round(spend / cpc));
       const impressions = clicks * (35 + Math.floor(Math.random() * 40));
 
-      addSpendEvent({
+      await addSpendEvent({
         id: createId("spend"),
         campaignId: campaign.id,
         impressions,
@@ -60,9 +61,12 @@ export async function POST(req: NextRequest) {
 
       const convRate =
         aggression === "winner" ? 0.12 : aggression === "loser" ? 0.01 : 0.05;
-      const convs = Math.random() < convRate * clicks ? Math.max(1, Math.round(clicks * convRate)) : 0;
+      const convs =
+        Math.random() < convRate * clicks
+          ? Math.max(1, Math.round(clicks * convRate))
+          : 0;
       for (let i = 0; i < convs; i++) {
-        addConversion({
+        await addConversion({
           id: createId("conv"),
           campaignId: campaign.id,
           offerId: campaign.offerId,
@@ -76,5 +80,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, created, campaigns: target.map((c) => c.id) });
+  return NextResponse.json({
+    ok: true,
+    created,
+    campaigns: target.map((c) => c.id),
+  });
 }
