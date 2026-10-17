@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #0b1210;
+  --ink-elevated: #121c18;
+  --ink-line: #1e2d26;
+  --fog: #9aaf9f;
+  --paper: #e8f0e6;
+  --lime: #c8f542;
+  --lime-dim: #9cbc2e;
+  --warn: #e8a54b;
+  --danger: #e85d5d;
+  --good: #5fd4a0;
+  --background: var(--ink);
+  --foreground: var(--paper);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-ink-elevated: var(--ink-elevated);
+  --color-ink-line: var(--ink-line);
+  --color-fog: var(--fog);
+  --color-paper: var(--paper);
+  --color-lime: var(--lime);
+  --color-lime-dim: var(--lime-dim);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-good: var(--good);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-syne);
+  --font-mono: var(--font-ibm-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), system-ui, sans-serif;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--lime) 45%, transparent);
+  color: var(--ink);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-12%) scaleX(0.85);
+    opacity: 0.2;
+  }
+  to {
+    transform: translateX(0) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-line {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-rise-delay {
+  animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+.animate-rise-delay-2 {
+  animation: rise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--lime) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--lime) 8%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 70% 40%, black 20%, transparent 75%);
+}
+
+.hero-bars span {
+  display: block;
+  width: 100%;
+  transform-origin: left center;
+  animation: sweep 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i) * 80ms);
+}
+
+.live-dot {
+  animation: pulse-line 2s ease-in-out infinite;
+}
