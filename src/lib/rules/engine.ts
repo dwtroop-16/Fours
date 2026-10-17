@@ -1,17 +1,16 @@
 import { createId } from "@/lib/id";
 import { computeCampaignMetrics, metricValue } from "@/lib/metrics";
+import { conditionMet } from "@/lib/rules/compare";
 import {
   addExecution,
   getCampaign,
   getOffer,
-  getStore,
   listCampaigns,
   listConversions,
   listRules,
   listSpendEvents,
   upsertCampaign,
 } from "@/lib/store";
-import { conditionMet } from "@/lib/rules/compare";
 import type {
   AutomationRule,
   Campaign,
@@ -31,30 +30,30 @@ function ruleAppliesToCampaign(rule: AutomationRule, campaignId: string): boolea
 
 function inCooldown(rule: AutomationRule): boolean {
   if (!rule.lastFiredAt) return false;
-  const elapsed =
-    Date.now() - new Date(rule.lastFiredAt).getTime();
+  const elapsed = Date.now() - new Date(rule.lastFiredAt).getTime();
   return elapsed < rule.cooldownMinutes * 60_000;
 }
 
-function resolveThreshold(rule: AutomationRule, campaign: Campaign): number {
-  // CPA rules often want relative-to-payout; if rule id hints pause_high_cpa, use offer payout * 1.2
+async function resolveThreshold(
+  rule: AutomationRule,
+  campaign: Campaign,
+): Promise<number> {
   if (rule.metric === "cpa" && rule.id.includes("high_cpa")) {
-    const offer = getOffer(campaign.offerId);
+    const offer = await getOffer(campaign.offerId);
     if (offer) return Math.round(offer.payout * 1.2 * 100) / 100;
   }
   return rule.threshold;
 }
 
-export function applyAction(
+export async function applyAction(
   rule: AutomationRule,
   campaign: Campaign,
   metrics: CampaignMetrics,
   threshold: number,
-): RuleExecution {
+): Promise<RuleExecution> {
   const now = new Date().toISOString();
   let message = "";
-  // Always merge onto the latest store row so earlier actions in this cycle are kept.
-  const live = getCampaign(campaign.id) ?? campaign;
+  const live = (await getCampaign(campaign.id)) ?? campaign;
   const next = { ...live, updatedAt: now };
 
   switch (rule.action) {
@@ -85,9 +84,9 @@ export function applyAction(
       break;
   }
 
-  upsertCampaign(next);
+  await upsertCampaign(next);
 
-  const execution: RuleExecution = {
+  return addExecution({
     id: createId("exec"),
     ruleId: rule.id,
     campaignId: live.id,
@@ -96,18 +95,19 @@ export function applyAction(
     threshold,
     message,
     executedAt: now,
-  };
-  return addExecution(execution);
+  });
 }
 
-export function evaluateRules(options?: {
+export async function evaluateRules(options?: {
   now?: Date;
-}): EvaluationResult {
+}): Promise<EvaluationResult> {
   const now = options?.now ?? new Date();
-  const rules = listRules().filter((r) => r.enabled);
-  const campaigns = listCampaigns().filter((c) => c.status !== "draft");
-  const spendEvents = listSpendEvents();
-  const conversions = listConversions();
+  const rules = (await listRules()).filter((r) => r.enabled);
+  const campaignIds = (await listCampaigns())
+    .filter((c) => c.status !== "draft")
+    .map((c) => c.id);
+  const spendEvents = await listSpendEvents();
+  const conversions = await listConversions();
 
   const fired: RuleExecution[] = [];
   const skipped: EvaluationResult["skipped"] = [];
@@ -115,18 +115,15 @@ export function evaluateRules(options?: {
 
   for (const rule of rules) {
     if (inCooldown(rule)) {
-      skipped.push({
-        ruleId: rule.id,
-        campaignId: "*",
-        reason: "cooldown",
-      });
+      skipped.push({ ruleId: rule.id, campaignId: "*", reason: "cooldown" });
       continue;
     }
 
     const since = new Date(now.getTime() - rule.lookbackHours * 3600_000);
 
-    for (const snapshot of campaigns) {
-      const campaign = getCampaign(snapshot.id) ?? snapshot;
+    for (const id of campaignIds) {
+      const campaign = await getCampaign(id);
+      if (!campaign) continue;
       if (!ruleAppliesToCampaign(rule, campaign.id)) continue;
       if (campaign.status === "ended") continue;
       if (rule.action === "pause_campaign" && campaign.status === "paused") {
@@ -176,7 +173,7 @@ export function evaluateRules(options?: {
         continue;
       }
 
-      const threshold = resolveThreshold(rule, campaign);
+      const threshold = await resolveThreshold(rule, campaign);
       if (!conditionMet(rule.operator, value, threshold)) {
         skipped.push({
           ruleId: rule.id,
@@ -186,12 +183,10 @@ export function evaluateRules(options?: {
         continue;
       }
 
-      fired.push(applyAction(rule, campaign, metrics, threshold));
+      fired.push(await applyAction(rule, campaign, metrics, threshold));
     }
   }
 
-  // Touch store so callers see latest
-  getStore();
   return { checked, fired, skipped };
 }
 
